@@ -1,0 +1,8 @@
+services:
+  web:
+    build: .
+    container_name: scan_comiccon_geekcon_web
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Для продакшн-режима не используется volumes (иначе будут проблемы с кешированием)
+    command: ["npm", "start"]

@@ -1,0 +1,616 @@
+.page {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 20%, rgba(132, 204, 22, 0.16), transparent 36%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.14), transparent 32%),
+    linear-gradient(135deg, #09121f 0%, #0f1d2b 44%, #131925 100%);
+  color: #ecf3ff;
+  padding: 16px;
+}
+
+.topbar {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 18, 33, 0.78);
+  backdrop-filter: blur(12px);
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.brandBlock {
+  min-width: 0;
+}
+
+.brandKicker {
+  margin: 0;
+  color: rgba(223, 239, 255, 0.72);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brandBlock h1 {
+  margin: 4px 0 0;
+  font-family: Organetto, Involve, sans-serif;
+  font-size: clamp(20px, 4.8vw, 32px);
+  line-height: 1.1;
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.clockBox {
+  border-radius: 12px;
+  border: 1px solid rgba(147, 197, 253, 0.36);
+  background: rgba(12, 25, 42, 0.9);
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  min-width: 178px;
+}
+
+.clockBox strong {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.clockBox span {
+  color: rgba(230, 241, 255, 0.72);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.accountBadge {
+  border-radius: 12px;
+  border: 1px solid rgba(94, 234, 212, 0.36);
+  background: rgba(8, 34, 46, 0.86);
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+  min-width: 160px;
+  max-width: min(56vw, 280px);
+}
+
+.accountBadge strong {
+  font-size: 13px;
+  line-height: 1.1;
+  color: #ccfbf1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountBadge span {
+  font-size: 11px;
+  line-height: 1.1;
+  color: rgba(204, 251, 241, 0.82);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.networkBadge {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 8px 12px;
+}
+
+.networkOnline {
+  background: rgba(16, 185, 129, 0.2);
+  color: #86efac;
+}
+
+.networkOffline {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+}
+
+.logoutBtn {
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.18);
+  color: #fecaca;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.main {
+  margin-top: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.statCard {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(11, 23, 38, 0.82);
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.statCard p {
+  margin: 0;
+  color: rgba(220, 236, 255, 0.76);
+  font-size: 13px;
+}
+
+.statCard strong {
+  font-size: clamp(22px, 6vw, 34px);
+  line-height: 1;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.card {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(9, 19, 34, 0.88);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardHeader h2 {
+  margin: 0;
+  font-size: clamp(17px, 4vw, 22px);
+  line-height: 1.2;
+}
+
+.cardHeader p {
+  margin: 0;
+  color: rgba(223, 239, 255, 0.72);
+  font-size: 13px;
+}
+
+.historyHeaderRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historyCounters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.historyCounter {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.historyCounter span {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.historyCounter strong {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.historyCounterSuccess {
+  background: rgba(22, 163, 74, 0.2);
+  color: #bbf7d0;
+}
+
+.historyCounterError {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fecaca;
+}
+
+.historyMeta {
+  width: 100%;
+}
+
+.manualForm {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.cameraControls {
+  display: grid;
+  gap: 8px;
+}
+
+.cameraSelect,
+.searchInput {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(191, 219, 254, 0.28);
+  background: rgba(15, 28, 45, 0.92);
+  color: #f8fbff;
+  padding: 0 12px;
+  outline: none;
+  font-family: Involve, sans-serif;
+  font-size: 14px;
+}
+
+.cameraSelect:focus,
+.searchInput:focus {
+  border-color: rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.24);
+}
+
+.cameraActionRow {
+  display: flex;
+  gap: 8px;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.ghostBtn {
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 0 14px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+.primaryBtn {
+  border: 0;
+  color: #052031;
+  background: linear-gradient(135deg, #2dd4bf 0%, #22d3ee 60%, #38bdf8 100%);
+}
+
+.secondaryBtn {
+  border: 1px solid rgba(125, 211, 252, 0.56);
+  background: rgba(16, 32, 54, 0.92);
+  color: #ccefff;
+}
+
+.ghostBtn {
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  background: transparent;
+  color: #fecaca;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.55;
+}
+
+.qrReader {
+  width: 100%;
+  height: 100%;
+  min-height: 250px;
+}
+
+.scannerViewport {
+  position: relative;
+  width: 100%;
+  min-height: 250px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: rgba(8, 16, 31, 0.95);
+}
+
+.scannerOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.idleGuide {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(72%, 260px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 18px;
+}
+
+.trackingFrame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 16px;
+  transition:
+    transform 120ms linear,
+    width 120ms linear,
+    height 120ms linear;
+}
+
+.frameCorner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: #2dd4bf;
+  border-style: solid;
+  filter: drop-shadow(0 0 10px rgba(45, 212, 191, 0.32));
+}
+
+.frameCornerTl {
+  left: -1px;
+  top: -1px;
+  border-width: 3px 0 0 3px;
+  border-top-left-radius: 10px;
+}
+
+.frameCornerTr {
+  right: -1px;
+  top: -1px;
+  border-width: 3px 3px 0 0;
+  border-top-right-radius: 10px;
+}
+
+.frameCornerBl {
+  left: -1px;
+  bottom: -1px;
+  border-width: 0 0 3px 3px;
+  border-bottom-left-radius: 10px;
+}
+
+.frameCornerBr {
+  right: -1px;
+  bottom: -1px;
+  border-width: 0 3px 3px 0;
+  border-bottom-right-radius: 10px;
+}
+
+.scanResultCard {
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.scanResultCard p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.scanMeta {
+  display: grid;
+  gap: 4px;
+}
+
+.scanMeta span {
+  color: rgba(226, 241, 255, 0.82);
+  font-size: 12px;
+}
+
+.scanSuccess {
+  border: 1px solid rgba(74, 222, 128, 0.5);
+  background: rgba(22, 101, 52, 0.27);
+}
+
+.scanError {
+  border: 1px solid rgba(248, 113, 113, 0.48);
+  background: rgba(127, 29, 29, 0.2);
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.paginationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.paginationInfo {
+  margin: 0;
+  color: rgba(223, 239, 255, 0.78);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.errorText {
+  margin: 0;
+  color: #fecaca;
+  font-size: 12px;
+}
+
+.historyDesktop {
+  display: none;
+}
+
+.historyDesktopTable {
+  display: grid;
+  gap: 6px;
+  overflow: auto;
+}
+
+.historyHead,
+.historyRow {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1fr) minmax(120px, 0.8fr) minmax(180px, 1fr) minmax(180px, 1fr);
+  gap: 8px;
+  border-radius: 10px;
+  align-items: center;
+  padding: 11px 10px;
+}
+
+.historyHead {
+  background: rgba(23, 40, 62, 0.92);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.historyRow {
+  background: rgba(14, 26, 44, 0.92);
+}
+
+.historyHead p,
+.historyRow p {
+  margin: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.statusSuccess {
+  background: rgba(22, 163, 74, 0.28);
+  color: #bbf7d0;
+}
+
+.statusError {
+  background: rgba(220, 38, 38, 0.28);
+  color: #fecaca;
+}
+
+.historyMobile {
+  display: block;
+}
+
+.historyMobileList {
+  display: grid;
+  gap: 8px;
+}
+
+.historyMobileCard {
+  border-radius: 12px;
+  border: 1px solid rgba(191, 219, 254, 0.22);
+  background: rgba(16, 29, 48, 0.94);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.historyMobileTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.historyMobileCard strong {
+  font-size: 14px;
+}
+
+.historyMobileCard p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(226, 241, 255, 0.94);
+}
+
+.historyMobileCard p span {
+  color: rgba(186, 215, 243, 0.82);
+}
+
+.emptyState {
+  margin: 0;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px dashed rgba(191, 219, 254, 0.24);
+  color: rgba(223, 239, 255, 0.72);
+  font-size: 13px;
+}
+
+@media (min-width: 821px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .contentGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .manualForm {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .searchRow {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .historyDesktop {
+    display: block;
+  }
+
+  .historyMobile {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 12px;
+  }
+
+  .topbarRight {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .clockBox {
+    min-width: 100%;
+  }
+
+  .accountBadge {
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
