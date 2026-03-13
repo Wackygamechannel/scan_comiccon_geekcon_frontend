@@ -46,6 +46,8 @@ const CAMERA_RECOVERABLE_ERRORS = new Set([
 
 const BACK_CAMERA_PATTERN =
   /(back|rear|environment|traseira|trasera|arrière|зад|орқа|orqa|orqa kamera)/i;
+const UUID_PATTERN =
+  /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
 
 function normalizeCameraDevices(devices) {
   return devices
@@ -179,6 +181,21 @@ function extractOffsetFromLink(value) {
   } catch {
     return null;
   }
+}
+
+function normalizeTicketId(value) {
+  const rawValue = String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
+
+  if (!rawValue) return "";
+
+  const matchedUuid = rawValue.match(UUID_PATTERN);
+  if (matchedUuid?.[0]) {
+    return matchedUuid[0];
+  }
+
+  return rawValue.replace(/\s+/g, "");
 }
 
 function HistoryDesktopTable({ items }) {
@@ -720,23 +737,54 @@ export default function Home() {
   const handleManualScan = async (event) => {
     event.preventDefault();
 
-    if (!manualTicketId.trim()) {
+    const normalizedManualTicketId = normalizeTicketId(manualTicketId);
+    if (!normalizedManualTicketId) {
       setScanMessage("Введите ID билета");
       return;
     }
 
-    await submitScan(manualTicketId);
+    await submitScan(normalizedManualTicketId);
     setManualTicketId("");
   };
 
-  const submitTicketSearch = async () => {
-    const trimmed = ticketSearchValue.trim();
+  const pasteManualTicketId = async () => {
+    if (!navigator.clipboard?.readText) {
+      setScanResult(null);
+      setScanMessage("Вставка из буфера недоступна в этом браузере");
+      return;
+    }
 
-    if (!trimmed) {
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      const normalizedValue = normalizeTicketId(clipboardText);
+
+      if (!normalizedValue) {
+        setScanResult(null);
+        setScanMessage("Буфер обмена пуст или не содержит ID билета");
+        return;
+      }
+
+      setManualTicketId(normalizedValue);
+      setScanResult(null);
+      setScanMessage("UUID вставлен в поле. Нажмите «Проверить».");
+    } catch {
+      setScanResult(null);
+      setScanMessage("Не удалось прочитать буфер обмена. Проверьте разрешения браузера.");
+    }
+  };
+
+  const submitTicketSearch = async () => {
+    const normalizedSearchValue = normalizeTicketId(ticketSearchValue);
+
+    if (!normalizedSearchValue) {
       setIsSearchMode(false);
       setTicketSearchError("");
       setHistoryView(historyCache);
       return;
+    }
+
+    if (normalizedSearchValue !== ticketSearchValue) {
+      setTicketSearchValue(normalizedSearchValue);
     }
 
     try {
@@ -744,7 +792,7 @@ export default function Home() {
       setTicketSearchError("");
 
       const response = await api.get("/api/v1/crm/cashier/scanner/search/", {
-        params: { ticket_id: trimmed },
+        params: { ticket_id: normalizedSearchValue },
       });
 
       setIsSearchMode(true);
@@ -954,12 +1002,21 @@ export default function Home() {
               <form className={styles.manualForm} onSubmit={handleManualScan}>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  placeholder="Введите ID билета"
+                  inputMode="text"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="Введите UUID/ID билета"
                   className={styles.searchInput}
                   value={manualTicketId}
                   onChange={(event) => setManualTicketId(event.target.value)}
                 />
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={pasteManualTicketId}
+                >
+                  Вставить UUID
+                </button>
                 <button type="submit" className={styles.primaryBtn}>
                   Проверить
                 </button>
@@ -1022,9 +1079,11 @@ export default function Home() {
             <div className={styles.searchRow}>
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode="text"
+                autoCapitalize="none"
+                spellCheck={false}
                 className={styles.searchInput}
-                placeholder="Поиск по ID билета"
+                placeholder="Поиск по UUID/ID билета"
                 value={ticketSearchValue}
                 onChange={(event) => {
                   setTicketSearchValue(event.target.value);
