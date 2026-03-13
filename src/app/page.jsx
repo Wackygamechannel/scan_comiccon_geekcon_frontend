@@ -418,9 +418,9 @@ export default function Home() {
   const ocrIntervalRef = useRef(null);
   const ocrInFlightRef = useRef(false);
   const scanInFlightRef = useRef(false);
-  const submitScanRef = useRef(null);
   const lastAutoDetectedIdRef = useRef("");
   const lastAutoDetectedAtRef = useRef(0);
+  const cameraRestartTimeoutRef = useRef(null);
 
   const [trackedBounds, setTrackedBounds] = useState(null);
   const [lastTrackedAt, setLastTrackedAt] = useState(0);
@@ -441,6 +441,11 @@ export default function Home() {
       if (ocrWorkerRef.current?.terminate) {
         ocrWorkerRef.current.terminate().catch(() => {});
         ocrWorkerRef.current = null;
+      }
+
+      if (cameraRestartTimeoutRef.current) {
+        window.clearTimeout(cameraRestartTimeoutRef.current);
+        cameraRestartTimeoutRef.current = null;
       }
     };
   }, []);
@@ -675,10 +680,6 @@ export default function Home() {
     [api, fetchScannerHistory, historyOffset, isSearchMode]
   );
 
-  useEffect(() => {
-    submitScanRef.current = submitScan;
-  }, [submitScan]);
-
   const loadCameras = useCallback(async () => {
     if (typeof window === "undefined") return;
 
@@ -742,7 +743,7 @@ export default function Home() {
     return () => window.clearTimeout(scrollTimer);
   }, [scannerPanelOpen]);
 
-  const startScanner = async () => {
+  const startScanner = async (forcedCameraId = null) => {
     if (scannerRunningRef.current) return;
 
     try {
@@ -777,7 +778,10 @@ export default function Home() {
 
       setCameras(availableCameras);
 
-      const preferredCameraId = pickPreferredCameraId(availableCameras, selectedCamera);
+      const preferredCameraId = pickPreferredCameraId(
+        availableCameras,
+        forcedCameraId || selectedCamera
+      );
       setSelectedCamera(preferredCameraId);
       setTrackedBounds(null);
       setLastTrackedAt(0);
@@ -866,8 +870,10 @@ export default function Home() {
               if (normalizedDecodedId) {
                 setManualTicketId(normalizedDecodedId);
               }
+              setScanResult(null);
+              setScanMessage("QR распознан, проверяю...");
               await stopScanner();
-              submitScan(normalizedDecodedId || decodedText);
+              await submitScan(normalizedDecodedId || decodedText);
             },
             () => {}
           );
@@ -889,6 +895,28 @@ export default function Home() {
       setScannerError(mapCameraError(error));
       setScannerRunning(false);
     }
+  };
+
+  const handleCameraChange = async (event) => {
+    const nextCameraId = event.target.value;
+    setSelectedCamera(nextCameraId);
+
+    if (!scannerRunningRef.current) return;
+
+    setScanResult(null);
+    setScanMessage("Переключаю камеру...");
+
+    await stopScanner();
+
+    if (cameraRestartTimeoutRef.current) {
+      window.clearTimeout(cameraRestartTimeoutRef.current);
+      cameraRestartTimeoutRef.current = null;
+    }
+
+    cameraRestartTimeoutRef.current = window.setTimeout(() => {
+      cameraRestartTimeoutRef.current = null;
+      void startScanner(nextCameraId);
+    }, 180);
   };
 
   useEffect(() => {
@@ -941,12 +969,9 @@ export default function Home() {
 
         setManualTicketId(detectedUuid);
         setScanResult(null);
-        setScanMessage("UUID распознан, проверяю...");
+        setScanMessage("UUID распознан. Нажмите «Проверить».");
 
         await stopScanner();
-        if (isCancelled) return;
-
-        await submitScanRef.current?.(detectedUuid);
       } catch (error) {
         if (!isCancelled) {
           console.warn("Ошибка OCR fallback:", error);
@@ -1172,7 +1197,7 @@ export default function Home() {
                     <select
                       className={styles.cameraSelect}
                       value={selectedCamera}
-                      onChange={(event) => setSelectedCamera(event.target.value)}
+                      onChange={handleCameraChange}
                     >
                       {!cameras.length && (
                         <option value="">Автовыбор (основная камера)</option>
