@@ -10,6 +10,9 @@ import styles from "./home.module.css";
 
 const HISTORY_LIMIT = 100;
 const TRACKING_STALE_MS = 350;
+const OCR_INTERVAL_MS = 900;
+const OCR_DETECTION_COOLDOWN_MS = 2500;
+const UUID_COMPACT_PATTERN = /[0-9a-fA-F]{32}/;
 
 function mapCameraError(error) {
   const errorName = error?.name || "";
@@ -190,12 +193,101 @@ function normalizeTicketId(value) {
 
   if (!rawValue) return "";
 
-  const matchedUuid = rawValue.match(UUID_PATTERN);
-  if (matchedUuid?.[0]) {
-    return matchedUuid[0];
+  const extractedUuid = extractUuidFromText(rawValue);
+  if (extractedUuid) {
+    return extractedUuid;
   }
 
   return rawValue.replace(/\s+/g, "");
+}
+
+function extractUuidFromText(value) {
+  const rawValue = String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[—–−]/g, "-");
+
+  const directMatch = rawValue.match(UUID_PATTERN);
+  if (directMatch?.[0]) {
+    return directMatch[0].toLowerCase();
+  }
+
+  const collapsed = rawValue.replace(/\s+/g, "");
+  const collapsedMatch = collapsed.match(UUID_PATTERN);
+  if (collapsedMatch?.[0]) {
+    return collapsedMatch[0].toLowerCase();
+  }
+
+  const onlyHex = rawValue.replace(/[^0-9a-fA-F]/g, "");
+  const compactMatch = onlyHex.match(UUID_COMPACT_PATTERN);
+  if (compactMatch?.[0]) {
+    const compact = compactMatch[0].toLowerCase();
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
+  }
+
+  return "";
+}
+
+function drawOcrSnapshot(videoElement, viewportElement, canvasElement) {
+  const viewportWidth = viewportElement?.clientWidth || 0;
+  const viewportHeight = viewportElement?.clientHeight || 0;
+  const sourceWidth = videoElement?.videoWidth || 0;
+  const sourceHeight = videoElement?.videoHeight || 0;
+
+  if (!viewportWidth || !viewportHeight || !sourceWidth || !sourceHeight) {
+    return null;
+  }
+
+  const scanBox = buildQrBox(viewportWidth, viewportHeight);
+  const scanOffsetX = Math.max(0, (viewportWidth - scanBox.width) / 2);
+  const scanOffsetY = Math.max(0, (viewportHeight - scanBox.height) / 2);
+
+  const regionDisplayX = scanOffsetX;
+  const regionDisplayY = scanOffsetY;
+  const regionDisplayWidth = Math.min(scanBox.width, viewportWidth - regionDisplayX);
+  const regionDisplayHeight = Math.min(
+    viewportHeight - regionDisplayY,
+    Math.floor(scanBox.height * 1.35)
+  );
+
+  if (regionDisplayWidth <= 2 || regionDisplayHeight <= 2) {
+    return null;
+  }
+
+  const scaleX = sourceWidth / viewportWidth;
+  const scaleY = sourceHeight / viewportHeight;
+  const srcX = Math.max(0, Math.floor(regionDisplayX * scaleX));
+  const srcY = Math.max(0, Math.floor(regionDisplayY * scaleY));
+  const srcWidth = Math.max(
+    1,
+    Math.min(sourceWidth - srcX, Math.floor(regionDisplayWidth * scaleX))
+  );
+  const srcHeight = Math.max(
+    1,
+    Math.min(sourceHeight - srcY, Math.floor(regionDisplayHeight * scaleY))
+  );
+
+  const outputWidth = Math.min(880, srcWidth);
+  const outputHeight = Math.max(1, Math.round((srcHeight / srcWidth) * outputWidth));
+  canvasElement.width = outputWidth;
+  canvasElement.height = outputHeight;
+
+  const context = canvasElement.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  context.imageSmoothingEnabled = true;
+  context.drawImage(
+    videoElement,
+    srcX,
+    srcY,
+    srcWidth,
+    srcHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight
+  );
+
+  return canvasElement;
 }
 
 function HistoryDesktopTable({ items }) {
@@ -321,6 +413,14 @@ export default function Home() {
   const qrScannerRef = useRef(null);
   const scannerRunningRef = useRef(false);
   const scannerViewportRef = useRef(null);
+  const ocrWorkerRef = useRef(null);
+  const ocrCanvasRef = useRef(null);
+  const ocrIntervalRef = useRef(null);
+  const ocrInFlightRef = useRef(false);
+  const scanInFlightRef = useRef(false);
+  const submitScanRef = useRef(null);
+  const lastAutoDetectedIdRef = useRef("");
+  const lastAutoDetectedAtRef = useRef(0);
 
   const [trackedBounds, setTrackedBounds] = useState(null);
   const [lastTrackedAt, setLastTrackedAt] = useState(0);
@@ -329,6 +429,21 @@ export default function Home() {
   useEffect(() => {
     scannerRunningRef.current = scannerRunning;
   }, [scannerRunning]);
+
+  useEffect(() => {
+    return () => {
+      if (ocrIntervalRef.current) {
+        window.clearInterval(ocrIntervalRef.current);
+        ocrIntervalRef.current = null;
+      }
+      ocrInFlightRef.current = false;
+
+      if (ocrWorkerRef.current?.terminate) {
+        ocrWorkerRef.current.terminate().catch(() => {});
+        ocrWorkerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!scannerRunning) return;
@@ -447,8 +562,35 @@ export default function Home() {
     fetchScannerHistory({ offset: 0 });
   }, [fetchScannerHistory]);
 
+  const stopOcrLoop = useCallback(() => {
+    if (ocrIntervalRef.current) {
+      window.clearInterval(ocrIntervalRef.current);
+      ocrIntervalRef.current = null;
+    }
+    ocrInFlightRef.current = false;
+  }, []);
+
+  const getOcrWorker = useCallback(async () => {
+    if (ocrWorkerRef.current) {
+      return ocrWorkerRef.current;
+    }
+
+    const { createWorker, PSM } = await import("tesseract.js");
+    const worker = await createWorker("eng", 1, {
+      logger: () => {},
+    });
+    await worker.setParameters({
+      tessedit_char_whitelist: "0123456789abcdefABCDEF-",
+      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+    });
+
+    ocrWorkerRef.current = worker;
+    return worker;
+  }, []);
+
   const stopScanner = useCallback(async () => {
     if (!qrScannerRef.current || !scannerRunningRef.current) {
+      stopOcrLoop();
       setScannerRunning(false);
       return;
     }
@@ -459,11 +601,12 @@ export default function Home() {
     } catch (error) {
       console.error("Ошибка остановки камеры:", error);
     } finally {
+      stopOcrLoop();
       setScannerRunning(false);
       setTrackedBounds(null);
       setLastTrackedAt(0);
     }
-  }, []);
+  }, [stopOcrLoop]);
 
   useEffect(() => {
     return () => {
@@ -473,11 +616,14 @@ export default function Home() {
 
   const submitScan = useCallback(
     async (ticketId) => {
-      const cleanedTicketId = String(ticketId || "").trim();
+      const cleanedTicketId = normalizeTicketId(ticketId);
       if (!cleanedTicketId) {
         setScanMessage("Введите ID билета или отсканируйте QR-код");
         return;
       }
+
+      if (scanInFlightRef.current) return;
+      scanInFlightRef.current = true;
 
       try {
         const response = await api.post("/api/v1/crm/cashier/scanner/", {
@@ -522,10 +668,16 @@ export default function Home() {
             applyToView: !isSearchMode,
           });
         }
+      } finally {
+        scanInFlightRef.current = false;
       }
     },
     [api, fetchScannerHistory, historyOffset, isSearchMode]
   );
+
+  useEffect(() => {
+    submitScanRef.current = submitScan;
+  }, [submitScan]);
 
   const loadCameras = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -629,6 +781,7 @@ export default function Home() {
       setSelectedCamera(preferredCameraId);
       setTrackedBounds(null);
       setLastTrackedAt(0);
+      setScanMessage("Ищу QR-код или UUID в кадре...");
 
       const cameraIds = Array.from(
         new Set([preferredCameraId, ...availableCameras.map((camera) => camera.id)].filter(Boolean))
@@ -709,8 +862,12 @@ export default function Home() {
             },
             async (decodedText, decodedResult) => {
               updateTrackedFrame(decodedResult);
+              const normalizedDecodedId = normalizeTicketId(decodedText);
+              if (normalizedDecodedId) {
+                setManualTicketId(normalizedDecodedId);
+              }
               await stopScanner();
-              submitScan(decodedText);
+              submitScan(normalizedDecodedId || decodedText);
             },
             () => {}
           );
@@ -734,6 +891,89 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    if (!scannerRunning || !scannerPanelOpen) {
+      stopOcrLoop();
+      return;
+    }
+
+    let isCancelled = false;
+
+    const runOcrPass = async () => {
+      if (isCancelled || !scannerRunningRef.current) return;
+      if (scanInFlightRef.current || ocrInFlightRef.current) return;
+
+      const viewportElement = scannerViewportRef.current;
+      const videoElement = viewportElement?.querySelector("video");
+      if (!(videoElement instanceof HTMLVideoElement)) return;
+      if (videoElement.readyState < 2 || !videoElement.videoWidth || !videoElement.videoHeight) {
+        return;
+      }
+
+      if (!ocrCanvasRef.current) {
+        ocrCanvasRef.current = document.createElement("canvas");
+      }
+
+      const ocrCanvas = drawOcrSnapshot(videoElement, viewportElement, ocrCanvasRef.current);
+      if (!ocrCanvas) return;
+
+      ocrInFlightRef.current = true;
+      try {
+        const worker = await getOcrWorker();
+        if (isCancelled || !scannerRunningRef.current) return;
+
+        const result = await worker.recognize(ocrCanvas);
+        if (isCancelled || !scannerRunningRef.current) return;
+
+        const detectedUuid = extractUuidFromText(result?.data?.text || "");
+        if (!detectedUuid) return;
+
+        const detectedAt = Date.now();
+        const isSameUuidInCooldown =
+          detectedUuid === lastAutoDetectedIdRef.current &&
+          detectedAt - lastAutoDetectedAtRef.current < OCR_DETECTION_COOLDOWN_MS;
+        if (isSameUuidInCooldown || scanInFlightRef.current) {
+          return;
+        }
+
+        lastAutoDetectedIdRef.current = detectedUuid;
+        lastAutoDetectedAtRef.current = detectedAt;
+
+        setManualTicketId(detectedUuid);
+        setScanResult(null);
+        setScanMessage("UUID распознан, проверяю...");
+
+        await stopScanner();
+        if (isCancelled) return;
+
+        await submitScanRef.current?.(detectedUuid);
+      } catch (error) {
+        if (!isCancelled) {
+          console.warn("Ошибка OCR fallback:", error);
+        }
+      } finally {
+        ocrInFlightRef.current = false;
+      }
+    };
+
+    const runOcrTick = () => {
+      void runOcrPass();
+    };
+
+    const intervalId = window.setInterval(runOcrTick, OCR_INTERVAL_MS);
+    ocrIntervalRef.current = intervalId;
+    runOcrTick();
+
+    return () => {
+      isCancelled = true;
+      if (ocrIntervalRef.current === intervalId) {
+        window.clearInterval(intervalId);
+        ocrIntervalRef.current = null;
+      }
+      ocrInFlightRef.current = false;
+    };
+  }, [getOcrWorker, scannerPanelOpen, scannerRunning, stopOcrLoop, stopScanner]);
+
   const handleManualScan = async (event) => {
     event.preventDefault();
 
@@ -745,32 +985,6 @@ export default function Home() {
 
     await submitScan(normalizedManualTicketId);
     setManualTicketId("");
-  };
-
-  const pasteManualTicketId = async () => {
-    if (!navigator.clipboard?.readText) {
-      setScanResult(null);
-      setScanMessage("Вставка из буфера недоступна в этом браузере");
-      return;
-    }
-
-    try {
-      const clipboardText = await navigator.clipboard.readText();
-      const normalizedValue = normalizeTicketId(clipboardText);
-
-      if (!normalizedValue) {
-        setScanResult(null);
-        setScanMessage("Буфер обмена пуст или не содержит ID билета");
-        return;
-      }
-
-      setManualTicketId(normalizedValue);
-      setScanResult(null);
-      setScanMessage("UUID вставлен в поле. Нажмите «Проверить».");
-    } catch {
-      setScanResult(null);
-      setScanMessage("Не удалось прочитать буфер обмена. Проверьте разрешения браузера.");
-    }
   };
 
   const submitTicketSearch = async () => {
@@ -1010,13 +1224,6 @@ export default function Home() {
                   value={manualTicketId}
                   onChange={(event) => setManualTicketId(event.target.value)}
                 />
-                <button
-                  type="button"
-                  className={styles.secondaryBtn}
-                  onClick={pasteManualTicketId}
-                >
-                  Вставить UUID
-                </button>
                 <button type="submit" className={styles.primaryBtn}>
                   Проверить
                 </button>
