@@ -558,6 +558,21 @@ export default function Home() {
     loadCameras();
   }, [loadCameras, scannerPanelOpen, stopScanner]);
 
+  useEffect(() => {
+    if (!scannerPanelOpen) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 820px)").matches) return;
+
+    const scrollTimer = window.setTimeout(() => {
+      scannerViewportRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 140);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [scannerPanelOpen]);
+
   const startScanner = async () => {
     if (scannerRunningRef.current) return;
 
@@ -857,20 +872,6 @@ export default function Home() {
                 <p>Камера и ручной ввод</p>
               </div>
 
-              <form className={styles.manualForm} onSubmit={handleManualScan}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Введите ID билета"
-                  className={styles.searchInput}
-                  value={manualTicketId}
-                  onChange={(event) => setManualTicketId(event.target.value)}
-                />
-                <button type="submit" className={styles.primaryBtn}>
-                  Проверить
-                </button>
-              </form>
-
               <div className={styles.cameraControls}>
                 <button
                   type="button"
@@ -882,6 +883,30 @@ export default function Home() {
 
                 {scannerPanelOpen && (
                   <>
+                    <div className={styles.scannerViewport} ref={scannerViewportRef}>
+                      <div id="qr-reader" className={styles.qrReader} />
+                      <div className={styles.scannerOverlay} aria-hidden="true">
+                        {scannerRunning ? (
+                          isTrackingActive && trackedBounds ? (
+                            <div
+                              className={styles.trackingFrame}
+                              style={{
+                                width: trackedBounds.width,
+                                height: trackedBounds.height,
+                                transform: `translate(${trackedBounds.x}px, ${trackedBounds.y}px)`,
+                              }}
+                            >
+                              <FrameCorners />
+                            </div>
+                          ) : (
+                            <div className={styles.idleGuide}>
+                              <FrameCorners />
+                            </div>
+                          )
+                        ) : null}
+                      </div>
+                    </div>
+
                     <select
                       className={styles.cameraSelect}
                       value={selectedCamera}
@@ -922,33 +947,23 @@ export default function Home() {
                     {scannerError ? (
                       <p className={styles.errorText}>{scannerError}</p>
                     ) : null}
-
-                    <div className={styles.scannerViewport} ref={scannerViewportRef}>
-                      <div id="qr-reader" className={styles.qrReader} />
-                      <div className={styles.scannerOverlay} aria-hidden="true">
-                        {scannerRunning ? (
-                          isTrackingActive && trackedBounds ? (
-                            <div
-                              className={styles.trackingFrame}
-                              style={{
-                                width: trackedBounds.width,
-                                height: trackedBounds.height,
-                                transform: `translate(${trackedBounds.x}px, ${trackedBounds.y}px)`,
-                              }}
-                            >
-                              <FrameCorners />
-                            </div>
-                          ) : (
-                            <div className={styles.idleGuide}>
-                              <FrameCorners />
-                            </div>
-                          )
-                        ) : null}
-                      </div>
-                    </div>
                   </>
                 )}
               </div>
+
+              <form className={styles.manualForm} onSubmit={handleManualScan}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Введите ID билета"
+                  className={styles.searchInput}
+                  value={manualTicketId}
+                  onChange={(event) => setManualTicketId(event.target.value)}
+                />
+                <button type="submit" className={styles.primaryBtn}>
+                  Проверить
+                </button>
+              </form>
             </section>
 
             <section className={styles.card}>
