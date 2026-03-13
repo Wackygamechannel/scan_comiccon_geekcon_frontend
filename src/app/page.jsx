@@ -6,6 +6,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import ClientWrapper from "@/utils/clientWrapper";
 import useApi from "@/utils/api";
 import { useGlobal } from "@/utils/global";
+import { LANGUAGE_OPTIONS, TRANSLATIONS, useLanguage } from "@/utils/language";
 import styles from "./home.module.css";
 
 const HISTORY_LIMIT = 100;
@@ -13,32 +14,37 @@ const TRACKING_STALE_MS = 350;
 const OCR_INTERVAL_MS = 900;
 const OCR_DETECTION_COOLDOWN_MS = 2500;
 const UUID_COMPACT_PATTERN = /[0-9a-fA-F]{32}/;
+const LOCALE_BY_LANGUAGE = {
+  ru: "ru-RU",
+  uz: "uz-UZ",
+  en: "en-US",
+};
 
-function mapCameraError(error) {
+function mapCameraError(error, t) {
   const errorName = error?.name || "";
   const errorMessage = String(error?.message || "").toLowerCase();
 
   if (errorMessage.includes("object can not be found here")) {
-    return "Камера не найдена или временно недоступна. Проверьте разрешения и выберите другую камеру.";
+    return t.cameraNotFound;
   }
 
   if (errorName === "NotAllowedError" || errorName === "SecurityError") {
-    return "Доступ к камере запрещен. Разрешите камеру в настройках браузера.";
+    return t.cameraDenied;
   }
 
   if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
-    return "Камера не найдена на устройстве.";
+    return t.cameraNotOnDevice;
   }
 
   if (errorName === "NotReadableError" || errorName === "TrackStartError") {
-    return "Камера занята другим приложением. Закройте его и попробуйте снова.";
+    return t.cameraBusy;
   }
 
   if (errorName === "OverconstrainedError") {
-    return "Не удалось выбрать камеру. Попробуйте другой режим камеры.";
+    return t.cameraConstraint;
   }
 
-  return "Не удалось получить доступ к камере.";
+  return t.cameraUnavailable;
 }
 
 const CAMERA_RECOVERABLE_ERRORS = new Set([
@@ -57,7 +63,7 @@ function normalizeCameraDevices(devices) {
     .filter((device) => device.kind === "videoinput")
     .map((device, index) => ({
       id: device.deviceId,
-      label: device.label || `Камера ${index + 1}`,
+      label: device.label || "",
     }))
     .filter((device) => Boolean(device.id));
 }
@@ -121,8 +127,9 @@ function FrameCorners() {
   );
 }
 
-function formatScanDateTime(value) {
+function formatScanDateTime(value, language) {
   if (!value) return "—";
+  const locale = LOCALE_BY_LANGUAGE[language] || LOCALE_BY_LANGUAGE.ru;
 
   const parsedIso = DateTime.fromISO(value, { zone: "Asia/Tashkent" });
   const parsed = parsedIso.isValid
@@ -132,18 +139,20 @@ function formatScanDateTime(value) {
       });
 
   if (parsed.isValid) {
-    return parsed.setLocale("ru").toFormat("dd.MM.yyyy, HH:mm:ss");
+    return parsed
+      .setLocale(locale)
+      .toLocaleString(DateTime.DATETIME_MED_WITH_SECONDS);
   }
 
   const fallback = new Date(value);
   if (!Number.isNaN(fallback.getTime())) {
-    return fallback.toLocaleString("ru-RU");
+    return fallback.toLocaleString(locale);
   }
 
   return String(value);
 }
 
-function getLastScanAgo(timestamp) {
+function getLastScanAgo(timestamp, t) {
   if (!timestamp) return "";
 
   const parsed = DateTime.fromFormat(timestamp, "yyyy-MM-dd HH:mm:ss", {
@@ -160,11 +169,11 @@ function getLastScanAgo(timestamp) {
   const seconds = Math.max(0, Math.floor(diff.seconds || 0));
   const parts = [];
 
-  if (hours) parts.push(`${hours} ч`);
-  if (minutes) parts.push(`${minutes} м`);
-  parts.push(`${seconds} с`);
+  if (hours) parts.push(`${hours} ${t.hourShort}`);
+  if (minutes) parts.push(`${minutes} ${t.minuteShort}`);
+  parts.push(`${seconds} ${t.secondShort}`);
 
-  return `${parts.join(" ")} назад`;
+  return `${parts.join(" ")} ${t.justNow}`;
 }
 
 function extractHistoryItems(payload) {
@@ -290,19 +299,19 @@ function drawOcrSnapshot(videoElement, viewportElement, canvasElement) {
   return canvasElement;
 }
 
-function HistoryDesktopTable({ items }) {
+function HistoryDesktopTable({ items, language, t }) {
   if (!items.length) {
-    return <p className={styles.emptyState}>Сканов пока нет</p>;
+    return <p className={styles.emptyState}>{t.noScansYet}</p>;
   }
 
   return (
     <div className={styles.historyDesktopTable}>
       <div className={styles.historyHead}>
-        <p>ID билета</p>
-        <p>Пользователь</p>
-        <p>Статус</p>
-        <p>Тип билета</p>
-        <p>Дата</p>
+        <p>{t.ticketId}</p>
+        <p>{t.user}</p>
+        <p>{t.status}</p>
+        <p>{t.ticketType}</p>
+        <p>{t.date}</p>
       </div>
 
       {items.map((entry, index) => {
@@ -325,7 +334,7 @@ function HistoryDesktopTable({ items }) {
               </span>
             </p>
             <p>{entry.ticket_type || "—"}</p>
-            <p>{formatScanDateTime(entry.scanned_at)}</p>
+            <p>{formatScanDateTime(entry.scanned_at, language)}</p>
           </div>
         );
       })}
@@ -333,9 +342,9 @@ function HistoryDesktopTable({ items }) {
   );
 }
 
-function HistoryMobileCards({ items }) {
+function HistoryMobileCards({ items, language, t }) {
   if (!items.length) {
-    return <p className={styles.emptyState}>Сканов пока нет</p>;
+    return <p className={styles.emptyState}>{t.noScansYet}</p>;
   }
 
   return (
@@ -359,13 +368,13 @@ function HistoryMobileCards({ items }) {
               </span>
             </div>
             <p>
-              <span>Пользователь:</span> {entry.user_name || "—"}
+              <span>{t.user}:</span> {entry.user_name || "—"}
             </p>
             <p>
-              <span>Тип:</span> {entry.ticket_type || "—"}
+              <span>{t.type}:</span> {entry.ticket_type || "—"}
             </p>
             <p>
-              <span>Дата:</span> {formatScanDateTime(entry.scanned_at)}
+              <span>{t.date}:</span> {formatScanDateTime(entry.scanned_at, language)}
             </p>
           </article>
         );
@@ -377,6 +386,7 @@ function HistoryMobileCards({ items }) {
 export default function Home() {
   const api = useApi();
   const { logout } = useGlobal();
+  const { language, setLanguage, t } = useLanguage();
 
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
@@ -397,9 +407,7 @@ export default function Home() {
   const [isSearchMode, setIsSearchMode] = useState(false);
 
   const [scanResult, setScanResult] = useState(null);
-  const [scanMessage, setScanMessage] = useState(
-    "Отсканируйте QR-код или введите ID билета вручную"
-  );
+  const [scanMessage, setScanMessage] = useState(TRANSLATIONS.ru.enterTicketOrScan);
   const [lastScanAgo, setLastScanAgo] = useState("");
 
   const [scannerPanelOpen, setScannerPanelOpen] = useState(false);
@@ -425,6 +433,74 @@ export default function Home() {
   const [trackedBounds, setTrackedBounds] = useState(null);
   const [lastTrackedAt, setLastTrackedAt] = useState(0);
   const [trackingTick, setTrackingTick] = useState(0);
+
+  useEffect(() => {
+    const messageKeyMap = {
+      [TRANSLATIONS.ru.enterTicketOrScan]: t.enterTicketOrScan,
+      [TRANSLATIONS.uz.enterTicketOrScan]: t.enterTicketOrScan,
+      [TRANSLATIONS.en.enterTicketOrScan]: t.enterTicketOrScan,
+      [TRANSLATIONS.ru.enterTicketId]: t.enterTicketId,
+      [TRANSLATIONS.uz.enterTicketId]: t.enterTicketId,
+      [TRANSLATIONS.en.enterTicketId]: t.enterTicketId,
+      [TRANSLATIONS.ru.scanProcessed]: t.scanProcessed,
+      [TRANSLATIONS.uz.scanProcessed]: t.scanProcessed,
+      [TRANSLATIONS.en.scanProcessed]: t.scanProcessed,
+      [TRANSLATIONS.ru.scanError]: t.scanError,
+      [TRANSLATIONS.uz.scanError]: t.scanError,
+      [TRANSLATIONS.en.scanError]: t.scanError,
+      [TRANSLATIONS.ru.ocrSearching]: t.ocrSearching,
+      [TRANSLATIONS.uz.ocrSearching]: t.ocrSearching,
+      [TRANSLATIONS.en.ocrSearching]: t.ocrSearching,
+      [TRANSLATIONS.ru.qrChecking]: t.qrChecking,
+      [TRANSLATIONS.uz.qrChecking]: t.qrChecking,
+      [TRANSLATIONS.en.qrChecking]: t.qrChecking,
+      [TRANSLATIONS.ru.uuidDetected]: t.uuidDetected,
+      [TRANSLATIONS.uz.uuidDetected]: t.uuidDetected,
+      [TRANSLATIONS.en.uuidDetected]: t.uuidDetected,
+      [TRANSLATIONS.ru.switchingCamera]: t.switchingCamera,
+      [TRANSLATIONS.uz.switchingCamera]: t.switchingCamera,
+      [TRANSLATIONS.en.switchingCamera]: t.switchingCamera,
+    };
+
+    setScanMessage((prev) => messageKeyMap[prev] || prev);
+  }, [t]);
+
+  useEffect(() => {
+    const cameraErrorMap = {
+      [TRANSLATIONS.ru.cameraNotFound]: t.cameraNotFound,
+      [TRANSLATIONS.uz.cameraNotFound]: t.cameraNotFound,
+      [TRANSLATIONS.en.cameraNotFound]: t.cameraNotFound,
+      [TRANSLATIONS.ru.cameraDenied]: t.cameraDenied,
+      [TRANSLATIONS.uz.cameraDenied]: t.cameraDenied,
+      [TRANSLATIONS.en.cameraDenied]: t.cameraDenied,
+      [TRANSLATIONS.ru.cameraNotOnDevice]: t.cameraNotOnDevice,
+      [TRANSLATIONS.uz.cameraNotOnDevice]: t.cameraNotOnDevice,
+      [TRANSLATIONS.en.cameraNotOnDevice]: t.cameraNotOnDevice,
+      [TRANSLATIONS.ru.cameraBusy]: t.cameraBusy,
+      [TRANSLATIONS.uz.cameraBusy]: t.cameraBusy,
+      [TRANSLATIONS.en.cameraBusy]: t.cameraBusy,
+      [TRANSLATIONS.ru.cameraConstraint]: t.cameraConstraint,
+      [TRANSLATIONS.uz.cameraConstraint]: t.cameraConstraint,
+      [TRANSLATIONS.en.cameraConstraint]: t.cameraConstraint,
+      [TRANSLATIONS.ru.cameraUnavailable]: t.cameraUnavailable,
+      [TRANSLATIONS.uz.cameraUnavailable]: t.cameraUnavailable,
+      [TRANSLATIONS.en.cameraUnavailable]: t.cameraUnavailable,
+      [TRANSLATIONS.ru.secureContextRequired]: t.secureContextRequired,
+      [TRANSLATIONS.uz.secureContextRequired]: t.secureContextRequired,
+      [TRANSLATIONS.en.secureContextRequired]: t.secureContextRequired,
+      [TRANSLATIONS.ru.browserNoCameraSupport]: t.browserNoCameraSupport,
+      [TRANSLATIONS.uz.browserNoCameraSupport]: t.browserNoCameraSupport,
+      [TRANSLATIONS.en.browserNoCameraSupport]: t.browserNoCameraSupport,
+      [TRANSLATIONS.ru.camerasNotFoundRetry]: t.camerasNotFoundRetry,
+      [TRANSLATIONS.uz.camerasNotFoundRetry]: t.camerasNotFoundRetry,
+      [TRANSLATIONS.en.camerasNotFoundRetry]: t.camerasNotFoundRetry,
+      [TRANSLATIONS.ru.camerasNotFoundDevice]: t.camerasNotFoundDevice,
+      [TRANSLATIONS.uz.camerasNotFoundDevice]: t.camerasNotFoundDevice,
+      [TRANSLATIONS.en.camerasNotFoundDevice]: t.camerasNotFoundDevice,
+    };
+
+    setScannerError((prev) => cameraErrorMap[prev] || prev);
+  }, [t]);
 
   useEffect(() => {
     scannerRunningRef.current = scannerRunning;
@@ -465,17 +541,18 @@ export default function Home() {
     trackingTick - lastTrackedAt <= TRACKING_STALE_MS;
 
   useEffect(() => {
+    const locale = LOCALE_BY_LANGUAGE[language] || LOCALE_BY_LANGUAGE.ru;
     const tick = () => {
       const now = DateTime.now().setZone("Asia/Tashkent");
       setTime(now.toLocaleString(DateTime.TIME_24_WITH_SECONDS));
-      setDate(now.setLocale("ru").toLocaleString(DateTime.DATE_FULL));
+      setDate(now.setLocale(locale).toLocaleString(DateTime.DATE_FULL));
     };
 
     tick();
     const interval = window.setInterval(tick, 1000);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     const updateNetwork = () => {
@@ -623,7 +700,7 @@ export default function Home() {
     async (ticketId) => {
       const cleanedTicketId = normalizeTicketId(ticketId);
       if (!cleanedTicketId) {
-        setScanMessage("Введите ID билета или отсканируйте QR-код");
+        setScanMessage(t.enterTicketOrScan);
         return;
       }
 
@@ -643,7 +720,7 @@ export default function Home() {
         setScanMessage(
           response.data?.status_display ||
             response.data?.message ||
-            "Билет успешно обработан"
+            t.scanProcessed
         );
         setLastScanAgo("");
 
@@ -661,10 +738,10 @@ export default function Home() {
             error.response?.data?.detail ||
             error.response?.data?.error ||
             error.response?.data?.message ||
-            "Ошибка сканирования"
+            t.scanError
         );
 
-        setLastScanAgo(getLastScanAgo(error.response?.data?.last_scanned_at));
+        setLastScanAgo(getLastScanAgo(error.response?.data?.last_scanned_at, t));
 
         if (error.response) {
           await fetchScannerHistory({
@@ -677,23 +754,21 @@ export default function Home() {
         scanInFlightRef.current = false;
       }
     },
-    [api, fetchScannerHistory, historyOffset, isSearchMode]
+    [api, fetchScannerHistory, historyOffset, isSearchMode, t]
   );
 
   const loadCameras = useCallback(async () => {
     if (typeof window === "undefined") return;
 
     if (!window.isSecureContext) {
-      setScannerError(
-        "Камера работает только через HTTPS или localhost. Откройте сайт по https/localhost."
-      );
+      setScannerError(t.secureContextRequired);
       setCameras([]);
       setSelectedCamera("");
       return;
     }
 
     if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
-      setScannerError("Ваш браузер не поддерживает доступ к камере.");
+      setScannerError(t.browserNoCameraSupport);
       setCameras([]);
       setSelectedCamera("");
       return;
@@ -704,7 +779,7 @@ export default function Home() {
       const normalizedDevices = normalizeCameraDevices(devices);
 
       if (!normalizedDevices.length) {
-        setScannerError("Камеры не найдены. Нажмите «Запустить» для повторной попытки.");
+        setScannerError(t.camerasNotFoundRetry);
         setCameras([]);
         setSelectedCamera("");
         return;
@@ -715,9 +790,9 @@ export default function Home() {
       setScannerError("");
     } catch (error) {
       console.warn("Ошибка получения камер:", error);
-      setScannerError(mapCameraError(error));
+      setScannerError(mapCameraError(error, t));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!scannerPanelOpen) {
@@ -750,7 +825,7 @@ export default function Home() {
       setScannerError("");
 
       if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
-        setScannerError("Ваш браузер не поддерживает доступ к камере.");
+        setScannerError(t.browserNoCameraSupport);
         return;
       }
 
@@ -770,7 +845,7 @@ export default function Home() {
       const availableCameras = normalizeCameraDevices(deviceList);
 
       if (!availableCameras.length) {
-        setScannerError("Камеры не найдены на устройстве.");
+        setScannerError(t.camerasNotFoundDevice);
         setCameras([]);
         setSelectedCamera("");
         return;
@@ -785,7 +860,7 @@ export default function Home() {
       setSelectedCamera(preferredCameraId);
       setTrackedBounds(null);
       setLastTrackedAt(0);
-      setScanMessage("Ищу QR-код или UUID в кадре...");
+      setScanMessage(t.ocrSearching);
 
       const cameraIds = Array.from(
         new Set([preferredCameraId, ...availableCameras.map((camera) => camera.id)].filter(Boolean))
@@ -871,7 +946,7 @@ export default function Home() {
                 setManualTicketId(normalizedDecodedId);
               }
               setScanResult(null);
-              setScanMessage("QR распознан, проверяю...");
+              setScanMessage(t.qrChecking);
               await stopScanner();
               await submitScan(normalizedDecodedId || decodedText);
             },
@@ -892,7 +967,7 @@ export default function Home() {
       throw lastError || new Error("Camera start failed");
     } catch (error) {
       console.warn("Ошибка запуска камеры:", error);
-      setScannerError(mapCameraError(error));
+      setScannerError(mapCameraError(error, t));
       setScannerRunning(false);
     }
   };
@@ -904,7 +979,7 @@ export default function Home() {
     if (!scannerRunningRef.current) return;
 
     setScanResult(null);
-    setScanMessage("Переключаю камеру...");
+    setScanMessage(t.switchingCamera);
 
     await stopScanner();
 
@@ -969,7 +1044,7 @@ export default function Home() {
 
         setManualTicketId(detectedUuid);
         setScanResult(null);
-        setScanMessage("UUID распознан. Нажмите «Проверить».");
+        setScanMessage(t.uuidDetected);
 
         await stopScanner();
       } catch (error) {
@@ -997,14 +1072,14 @@ export default function Home() {
       }
       ocrInFlightRef.current = false;
     };
-  }, [getOcrWorker, scannerPanelOpen, scannerRunning, stopOcrLoop, stopScanner]);
+  }, [getOcrWorker, scannerPanelOpen, scannerRunning, stopOcrLoop, stopScanner, t]);
 
   const handleManualScan = async (event) => {
     event.preventDefault();
 
     const normalizedManualTicketId = normalizeTicketId(manualTicketId);
     if (!normalizedManualTicketId) {
-      setScanMessage("Введите ID билета");
+      setScanMessage(t.enterTicketId);
       return;
     }
 
@@ -1043,7 +1118,7 @@ export default function Home() {
       setTicketSearchError(
         error.response?.data?.detail ||
           error.response?.data?.message ||
-          "Ошибка поиска"
+          t.searchError
       );
     } finally {
       setTicketSearchLoading(false);
@@ -1099,7 +1174,7 @@ export default function Home() {
   const ticketTypeValue =
     scanResult?.ticket_type ||
     (scanResult?.partner_ticket
-      ? `Партнерский (${scanResult.partner_ticket})`
+      ? `${t.partnerTicket} (${scanResult.partner_ticket})`
       : "—");
 
   const staffDisplayName = useMemo(() => {
@@ -1123,18 +1198,33 @@ export default function Home() {
       <div className={styles.page}>
         <header className={styles.topbar}>
           <div className={styles.brandBlock}>
-            <p className={styles.brandKicker}>Ticket Scanner</p>
+            <p className={styles.brandKicker}>{t.ticketScanner}</p>
             <h1>ComicCon x GeekCon</h1>
           </div>
 
           <div className={styles.topbarRight}>
+            <label className={styles.languageBox}>
+              <span>{t.language}</span>
+              <select
+                className={styles.languageSelect}
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                aria-label={t.selectLanguage}
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className={styles.clockBox}>
               <strong>{time}</strong>
               <span>{date}</span>
             </div>
             {showStaffProfile ? (
               <div className={styles.accountBadge}>
-                <strong>{staffDisplayName || "Сотрудник"}</strong>
+                <strong>{staffDisplayName || t.staff}</strong>
                 {showSecondaryEmail ? <span>{staffEmail}</span> : null}
               </div>
             ) : null}
@@ -1143,10 +1233,10 @@ export default function Home() {
                 isOnline ? styles.networkOnline : styles.networkOffline
               }`}
             >
-              {isOnline ? "Online" : "Offline"}
+              {isOnline ? t.online : t.offline}
             </div>
             <button type="button" className={styles.logoutBtn} onClick={logout}>
-              Выйти
+              {t.logout}
             </button>
           </div>
         </header>
@@ -1155,8 +1245,8 @@ export default function Home() {
           <div className={styles.contentGrid}>
             <section className={styles.card}>
               <div className={styles.cardHeader}>
-                <h2>Сканер QR</h2>
-                <p>Камера и ручной ввод</p>
+                <h2>{t.scannerQr}</h2>
+                <p>{t.cameraAndManual}</p>
               </div>
 
               <div className={styles.cameraControls}>
@@ -1165,7 +1255,7 @@ export default function Home() {
                   className={styles.secondaryBtn}
                   onClick={() => setScannerPanelOpen((prev) => !prev)}
                 >
-                  {scannerPanelOpen ? "Скрыть камеру" : "Открыть камеру"}
+                  {scannerPanelOpen ? t.hideCamera : t.openCamera}
                 </button>
 
                 {scannerPanelOpen && (
@@ -1200,12 +1290,12 @@ export default function Home() {
                       onChange={handleCameraChange}
                     >
                       {!cameras.length && (
-                        <option value="">Автовыбор (основная камера)</option>
+                        <option value="">{t.cameraAuto}</option>
                       )}
                       {cameras.length ? (
-                        cameras.map((camera) => (
+                        cameras.map((camera, index) => (
                           <option key={camera.id} value={camera.id}>
-                            {camera.label || `Камера ${camera.id}`}
+                            {camera.label || `${t.camera} ${index + 1}`}
                           </option>
                         ))
                       ) : null}
@@ -1218,7 +1308,7 @@ export default function Home() {
                           className={styles.primaryBtn}
                           onClick={startScanner}
                         >
-                          Запустить
+                          {t.start}
                         </button>
                       ) : (
                         <button
@@ -1226,7 +1316,7 @@ export default function Home() {
                           className={styles.ghostBtn}
                           onClick={stopScanner}
                         >
-                          Остановить
+                          {t.stop}
                         </button>
                       )}
                     </div>
@@ -1244,21 +1334,21 @@ export default function Home() {
                   inputMode="text"
                   autoCapitalize="none"
                   spellCheck={false}
-                  placeholder="Введите UUID/ID билета"
+                  placeholder={t.manualPlaceholder}
                   className={styles.searchInput}
                   value={manualTicketId}
                   onChange={(event) => setManualTicketId(event.target.value)}
                 />
                 <button type="submit" className={styles.primaryBtn}>
-                  Проверить
+                  {t.check}
                 </button>
               </form>
             </section>
 
             <section className={styles.card}>
               <div className={styles.cardHeader}>
-                <h2>Последний результат</h2>
-                <p>{isScanSuccess ? "Успешно" : "Ожидание / ошибка"}</p>
+                <h2>{t.lastResult}</h2>
+                <p>{isScanSuccess ? t.success : t.waitOrError}</p>
               </div>
 
               <div
@@ -1268,11 +1358,19 @@ export default function Home() {
               >
                 <p>{scanMessageValue}</p>
                 <div className={styles.scanMeta}>
-                  <span>Тип билета: {ticketTypeValue}</span>
+                  <span>{t.ticketType}: {ticketTypeValue}</span>
                   <span>
-                    Время скана: {formatScanDateTime(scanResult?.scanned_at || scanResult?.last_scanned_at)}
+                    {t.scanTime}:{" "}
+                    {formatScanDateTime(
+                      scanResult?.scanned_at || scanResult?.last_scanned_at,
+                      language
+                    )}
                   </span>
-                  {lastScanAgo ? <span>Последний скан: {lastScanAgo}</span> : null}
+                  {lastScanAgo ? (
+                    <span>
+                      {t.lastScan}: {lastScanAgo}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -1281,30 +1379,30 @@ export default function Home() {
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div className={styles.historyHeaderRow}>
-                <h2>{isSearchMode ? "Результаты поиска" : "История сканирований"}</h2>
+                <h2>{isSearchMode ? t.searchResults : t.scanHistory}</h2>
                 <div className={styles.historyCounters}>
                   <div
                     className={`${styles.historyCounter} ${styles.historyCounterSuccess}`}
-                    title="Успешные сканы"
+                    title={t.successfulScans}
                   >
-                    <span>Успешные</span>
+                    <span>{t.successfulScans}</span>
                     <strong>{successScanCount}</strong>
                   </div>
                   <div
                     className={`${styles.historyCounter} ${styles.historyCounterError}`}
-                    title="Ошибочные сканы"
+                    title={t.failedScans}
                   >
-                    <span>Ошибочные</span>
+                    <span>{t.failedScans}</span>
                     <strong>{errorScanCount}</strong>
                   </div>
                 </div>
               </div>
               <p className={styles.historyMeta}>
                 {historyLoading
-                  ? "Загрузка..."
+                  ? t.loading
                   : isSearchMode
-                  ? `${historyView.length} записей`
-                  : `${historyView.length} из ${historyTotalCount}`}
+                  ? `${historyView.length} ${t.records}`
+                  : `${historyView.length} ${t.from} ${historyTotalCount}`}
               </p>
             </div>
 
@@ -1315,7 +1413,7 @@ export default function Home() {
                 autoCapitalize="none"
                 spellCheck={false}
                 className={styles.searchInput}
-                placeholder="Поиск по UUID/ID билета"
+                placeholder={t.searchPlaceholder}
                 value={ticketSearchValue}
                 onChange={(event) => {
                   setTicketSearchValue(event.target.value);
@@ -1334,7 +1432,7 @@ export default function Home() {
                 onClick={submitTicketSearch}
                 disabled={ticketSearchLoading}
               >
-                {ticketSearchLoading ? "Поиск..." : "Найти"}
+                {ticketSearchLoading ? t.searching : t.search}
               </button>
 
               {(isSearchMode || ticketSearchValue.trim()) && (
@@ -1344,7 +1442,7 @@ export default function Home() {
                   onClick={clearTicketSearch}
                   disabled={ticketSearchLoading}
                 >
-                  Сброс
+                  {t.reset}
                 </button>
               )}
             </div>
@@ -1357,10 +1455,10 @@ export default function Home() {
                   onClick={() => goToHistoryOffset(historyPrevOffset ?? 0)}
                   disabled={historyLoading || historyPrevOffset === null}
                 >
-                  Назад
+                  {t.back}
                 </button>
                 <p className={styles.paginationInfo}>
-                  Страница {currentHistoryPage} / {totalHistoryPages}
+                  {t.page} {currentHistoryPage} / {totalHistoryPages}
                 </p>
                 <button
                   type="button"
@@ -1370,7 +1468,7 @@ export default function Home() {
                   }
                   disabled={historyLoading || historyNextOffset === null}
                 >
-                  Вперёд
+                  {t.forward}
                 </button>
               </div>
             )}
@@ -1378,10 +1476,10 @@ export default function Home() {
             {ticketSearchError ? <p className={styles.errorText}>{ticketSearchError}</p> : null}
 
             <div className={styles.historyDesktop}>
-              <HistoryDesktopTable items={historyView} />
+              <HistoryDesktopTable items={historyView} language={language} t={t} />
             </div>
             <div className={styles.historyMobile}>
-              <HistoryMobileCards items={historyView} />
+              <HistoryMobileCards items={historyView} language={language} t={t} />
             </div>
           </section>
         </main>

@@ -20,6 +20,36 @@
   gap: 18px;
 }
 
+.languageRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.languageRow span {
+  color: rgba(220, 236, 255, 0.76);
+  font-size: 12px;
+}
+
+.languageSelect {
+  min-width: 86px;
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(191, 219, 254, 0.32);
+  background: rgba(15, 30, 49, 0.92);
+  color: #f8fbff;
+  padding: 0 10px;
+  outline: none;
+  font-family: Involve, sans-serif;
+  font-size: 13px;
+}
+
+.languageSelect:focus {
+  border-color: rgba(34, 211, 238, 0.8);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.24);
+}
+
 .titleWrap {
   display: grid;
   gap: 4px;

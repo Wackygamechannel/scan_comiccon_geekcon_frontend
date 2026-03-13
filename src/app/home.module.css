@@ -48,6 +48,40 @@
   justify-content: flex-end;
 }
 
+.languageBox {
+  border-radius: 12px;
+  border: 1px solid rgba(147, 197, 253, 0.36);
+  background: rgba(12, 25, 42, 0.9);
+  padding: 6px 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.languageBox span {
+  color: rgba(230, 241, 255, 0.72);
+  font-size: 10px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.languageSelect {
+  min-height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(191, 219, 254, 0.28);
+  background: rgba(15, 28, 45, 0.92);
+  color: #f8fbff;
+  padding: 0 8px;
+  outline: none;
+  font-family: Involve, sans-serif;
+  font-size: 12px;
+}
+
+.languageSelect:focus {
+  border-color: rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.24);
+}
+
 .clockBox {
   border-radius: 12px;
   border: 1px solid rgba(147, 197, 253, 0.36);
@@ -603,6 +637,10 @@
   .topbarRight {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .languageBox {
+    width: 100%;
   }
 
   .clockBox {
